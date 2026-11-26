@@ -1,0 +1,22 @@
+{
+  "clips": [
+    {"text": "请留步", "duration": 2},
+    {"text": "下一段为安静场景", "duration": 3}
+  ],
+  "rounds": [
+    {
+      "number": 1,
+      "lo": 0,
+      "hi": 5,
+      "left": {"clip_id": 1, "revision": 1, "start": 0},
+      "right": {"clip_id": 2, "revision": 1, "start": 2}
+    },
+    {
+      "number": 2,
+      "lo": 0,
+      "hi": 4,
+      "left": {"clip_id": 2, "revision": 1, "start": 0},
+      "right": null
+    }
+  ]
+}
