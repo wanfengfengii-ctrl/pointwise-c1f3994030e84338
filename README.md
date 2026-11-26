@@ -78,3 +78,11 @@ python3 -B -m unittest tests.test_workday -v
 用只准右席发声的发行开两个场。两场右灯都是 0，左灯分别为 0 和 1。第一场先让右席记灯，第二场先把左席报码件交右席。右席在 202 时没有实播首执。两场条件齐全后分别实播 S 和 L。把第一场原码投到第二场时应拒绝。可在第二场收码后、记灯前重开右席，把最终记灯响应视作失答，再用原号查回，确认左右各只有一条首执。收场前试查欠办，收场后按复盘号核对本席灯号和实际用码。
 
 `.pointwise-runtime.json` 以版本 1 的 API 清单启动工作台，`setup` 为准备命令列表，`start`、`verify`、`demo` 各是一条 argv。本次交付让 `verify` 连同原回归核验灯况、到件顺序和实播事实，断言失败应退出非零。让 `demo` 展示上述右席灯号相同却兑现不同句子的场次及收场回读。
+
+### 本次实现要点
+
+- `editions/linkage.py` 以整表求解一套席位指令：先试无报码方案，再试左席、右席报码。发送席只凭本席灯号定动作与 0/1 位值；接收席凭本席灯号与收到的位值定动作。无解时该轮在 `GET /drafts/{id}/preview` 报 `unsolvable`，`POST /editions` 返回 409。
+- 发行把方案冻结进 `light_plan`，并在 `rounds` 项写出 `sender`。`?seat=` 席件逐轮给出 `role`（`sender`、`receiver` 或 `silent`）与该席 `plan`；席位不重新求解，离线也能执行已发轮。
+- 联动轮只走 `observe`、`signal`，直接 `play` 返回 409。两件到达先后不限；条件未齐返回 202 且无首执。`GET /receipts/{id}` 单次只读，不触发播出，也不产生首执。
+- 首执与其触发输入同一事务落库；同号续办回同一首执，改参、换号重办与已受理输入的重办均返回 409，并保留已受理结果。收场按两席首执核账，联动轮额外列出灯号、报码与出票请求出处。
+- `verify` 为 `python3 -B check_project.py`，`demo` 为 `python3 -B -m unittest tests.test_linkage_demo -v`。

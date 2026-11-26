@@ -29,7 +29,14 @@ class WorkstationApplication:
     def _edition_payload(self, edition, seat=None):
         if seat:
             return encode_seat_packet(build_seat_packet(edition, seat))
-        return {'id': edition.id, 'draft_id': edition.draft_id, 'rounds': [item.__dict__ for item in edition.rounds]}
+        rounds = []
+        for item in edition.rounds:
+            entry = {'number': item.number, 'lo': item.lo, 'hi': item.hi, 'left': item.left, 'right': item.right}
+            if item.light_plan is not None:
+                entry['sender'] = item.sender
+                entry['light_plan'] = item.light_plan
+            rounds.append(entry)
+        return {'id': edition.id, 'draft_id': edition.draft_id, 'rounds': rounds}
 
     def handle(self, method: str, path: str, body: dict | None = None):
         parsed = urlparse(path)
@@ -66,18 +73,20 @@ class WorkstationApplication:
             if method == 'POST' and len(parts) == 3 and parts[0] == 'sessions' and parts[2] == 'rounds':
                 packet = issue_next_round(self.conn, int(parts[1]), body['round_number'])
                 return 200, encode_round_packet(packet)
-            if method == 'POST' and len(parts) == 3 and parts[0] == 'rounds' and parts[2] == 'play':
+            if method == 'POST' and len(parts) == 3 and parts[0] == 'rounds' and parts[2] in ('play', 'observe', 'signal'):
                 seat = body['seat']
                 if seat not in self.desks:
                     raise ValueError('409:unknown seat')
-                return self.desks[seat].handle('POST', f'/rounds/{parts[1]}/play', body)
+                return self.desks[seat].handle('POST', f'/rounds/{parts[1]}/{parts[2]}', body)
             if method == 'GET' and len(parts) == 2 and parts[0] == 'receipts':
                 seat = query.get('seat', [None])[0]
                 if seat:
+                    if seat not in self.desks:
+                        raise ValueError('409:unknown seat')
                     return self.desks[seat].handle('GET', f'/receipts/{parts[1]}')
                 for candidate in ('left', 'right'):
                     status, result = self.desks[candidate].handle('GET', f'/receipts/{parts[1]}')
-                    if status == 200:
+                    if status in (200, 202):
                         return status, result
                 return 404, {'error': 'receipt not found'}
             if method == 'POST' and len(parts) == 3 and parts[0] == 'sessions' and parts[2] == 'close':

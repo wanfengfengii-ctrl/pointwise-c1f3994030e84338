@@ -5,5 +5,5 @@
   "start": ["python3", "-B", "-m", "sessions.service", "--data-dir", "./runtime", "--host", "${POINTWISE_HOST}", "--port", "${POINTWISE_PORT}"],
   "readiness_path": "/health",
   "verify": ["python3", "-B", "check_project.py"],
-  "demo": ["python3", "-B", "-m", "unittest", "tests.test_workday", "-v"]
+  "demo": ["python3", "-B", "-m", "unittest", "tests.test_linkage_demo", "-v"]
 }

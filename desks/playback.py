@@ -23,9 +23,11 @@ def play_round(conn: sqlite3.Connection, path_packet_id: int, request_id: str, p
     prior = find_round_event(conn, packet.session_id, packet.round_number)
     if prior is not None:
         raise ValueError('409:round already has a first receipt')
-    frozen = next((item for item in installed.packet.rounds if item.number == packet.round_number), None)
+    frozen = next((item for item in installed.packet.rounds if item['number'] == packet.round_number), None)
     if frozen is None:
         raise ValueError('409:unknown round for seat packet')
-    action = frozen.left if installed.seat == 'left' else frozen.right
+    if frozen.get('linked'):
+        raise ValueError('409:linked round uses observe and signal')
+    action = frozen['action']
     with desk_write_transaction(conn):
         return __import__('desks.receipts', fromlist=['_receipt'])._receipt(append_event(conn, packet.session_id, packet.edition_id, installed.seat, packet.round_number, request_id, packet.__dict__, action))

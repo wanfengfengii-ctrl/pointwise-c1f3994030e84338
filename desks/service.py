@@ -2,9 +2,11 @@ import argparse
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
+from .events import list_session_events
 from .install import install_seat_packet
+from .linked import lookup, submit_linked
 from .playback import play_round
-from .receipts import read_receipt, read_session_receipts
+from .receipts import read_receipt
 from .store import open_desk
 
 class DeskApplication:
@@ -13,7 +15,23 @@ class DeskApplication:
         self.seat = seat
 
     def read_closeout_receipts(self, session_id: int):
-        return [item.__dict__ for item in read_session_receipts(self.conn, session_id)]
+        receipts = []
+        for event in list_session_events(self.conn, session_id, self.seat):
+            entry = {
+                'request_id': event.request_id,
+                'session_id': event.session_id,
+                'edition_id': event.edition_id,
+                'seat': event.seat,
+                'round_number': event.round_number,
+                'action': event.action,
+                'sequence': event.sequence,
+                'light': event.light,
+                'signal': event.signal,
+                'origin_request_id': event.origin_request_id,
+                'kind': event.kind,
+            }
+            receipts.append(entry)
+        return receipts
 
     def handle(self, method: str, path: str, body: dict | None = None):
         parsed = urlparse(path)
@@ -22,10 +40,18 @@ class DeskApplication:
             if method == 'POST' and parts == ['installations']:
                 receipt = install_seat_packet(self.conn, int(body['session_id']), body['packet'])
                 return 200, receipt.__dict__
+            if method == 'POST' and len(parts) == 3 and parts[0] == 'rounds' and parts[2] in ('observe', 'signal'):
+                status, payload = submit_linked(self.conn, int(parts[1]), body, self.seat, parts[2])
+                if status == 202:
+                    return 202, {'status': 'pending'}
+                return 200, {'receipt': payload['receipt']}
             if method == 'POST' and len(parts) == 3 and parts[0] == 'rounds' and parts[2] == 'play':
                 result = play_round(self.conn, int(parts[1]), body['request_id'], body['packet'])
                 return 200, result.__dict__
             if method == 'GET' and len(parts) == 2 and parts[0] == 'receipts':
+                state, payload = lookup(self.conn, parts[1], self.seat)
+                if state is not None:
+                    return 200, {'receipt': payload}
                 return 200, read_receipt(self.conn, parts[1], self.seat).__dict__
             return 404, {'error': 'not found'}
         except KeyError as exc:
